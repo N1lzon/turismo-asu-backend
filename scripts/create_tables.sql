@@ -34,3 +34,19 @@ CREATE TABLE IF NOT EXISTS route_places (
     order_index INTEGER NOT NULL,
     UNIQUE(route_id, order_index)
 );
+
+CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    photo TEXT,
+    date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME,
+    address TEXT,
+    location GEOGRAPHY(POINT, 4326),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS events_date_idx ON events(date);
+CREATE INDEX IF NOT EXISTS events_location_idx ON events USING GIST(location);
