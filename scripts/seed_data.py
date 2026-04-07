@@ -26,7 +26,8 @@ places = [
         "lat": -25.2880,
         "lng": -57.6320,
         "photos": [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Museo_del_Barro.jpg/640px-Museo_del_Barro.jpg"
+            "https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=1280&q=80",
+            "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=1280&q=80"
         ]
     },
     {
@@ -48,7 +49,10 @@ places = [
         },
         "lat": -25.2760,
         "lng": -57.6050,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1280&q=80",
+            "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?w=1280&q=80"
+        ]
     },
     {
         "name": "Panteón Nacional de los Héroes",
@@ -69,7 +73,10 @@ places = [
         },
         "lat": -25.2867,
         "lng": -57.6452,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=1280&q=80",
+            "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1280&q=80"
+        ]
     },
     {
         "name": "La Preferida",
@@ -90,7 +97,10 @@ places = [
         },
         "lat": -25.2950,
         "lng": -57.6380,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1280&q=80",
+            "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1280&q=80"
+        ]
     },
     {
         "name": "Mercado 4",
@@ -111,7 +121,10 @@ places = [
         },
         "lat": -25.2930,
         "lng": -57.6410,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1280&q=80",
+            "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=1280&q=80"
+        ]
     },
     {
         "name": "Hotel Sheraton Asunción",
@@ -132,7 +145,10 @@ places = [
         },
         "lat": -25.2980,
         "lng": -57.6350,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1280&q=80",
+            "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1280&q=80"
+        ]
     },
     {
         "name": "Bar San Roque",
@@ -153,7 +169,10 @@ places = [
         },
         "lat": -25.2910,
         "lng": -57.6395,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1280&q=80",
+            "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1280&q=80"
+        ]
     },
     {
         "name": "Museo Casa de la Independencia",
@@ -174,7 +193,10 @@ places = [
         },
         "lat": -25.2855,
         "lng": -57.6440,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=1280&q=80",
+            "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=1280&q=80"
+        ]
     },
     {
         "name": "Parque Carlos Antonio López",
@@ -195,7 +217,10 @@ places = [
         },
         "lat": -25.2820,
         "lng": -57.6480,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1280&q=80",
+            "https://images.unsplash.com/photo-1519331379826-f10be5486c6f?w=1280&q=80"
+        ]
     },
     {
         "name": "Restaurante Tierra Colorada",
@@ -216,7 +241,10 @@ places = [
         },
         "lat": -25.3010,
         "lng": -57.6290,
-        "photos": []
+        "photos": [
+            "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1280&q=80",
+            "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1280&q=80"
+        ]
     }
 ]
 
