@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS routes (
     name TEXT NOT NULL,
     description TEXT,
     is_preset BOOLEAN DEFAULT FALSE,
+    start_time TIME,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

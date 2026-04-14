@@ -14,6 +14,7 @@ def get_preset_routes():
             r.id,
             r.name,
             r.description,
+            r.start_time,
             COUNT(rp.place_id) AS total_places
         FROM routes r
         LEFT JOIN route_places rp ON r.id = rp.route_id
@@ -36,7 +37,7 @@ def get_preset_route(route_id: int):
 
     # Verificar que la ruta existe y es predeterminada
     cur.execute("""
-        SELECT id, name, description
+        SELECT id, name, description, start_time
         FROM routes
         WHERE id = %s AND is_preset = TRUE
     """, (route_id,))

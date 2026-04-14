@@ -290,10 +290,10 @@ def seed():
     # Insertar rutas predeterminadas
     for route in routes:
         cur.execute("""
-            INSERT INTO routes (name, description, is_preset)
-            VALUES (%s, %s, %s)
+            INSERT INTO routes (name, description, is_preset, start_time)
+            VALUES (%s, %s, %s, %s)
             RETURNING id
-        """, (route["name"], route["description"], route["is_preset"]))
+        """, (route["name"], route["description"], route["is_preset"], route["start_time"]))
 
         route_id = cur.fetchone()[0]
 
@@ -314,19 +314,38 @@ routes = [
         "name": "Centro Histórico",
         "description": "Recorrido por los principales monumentos y museos del centro de Asunción",
         "is_preset": True,
-        "places": ["Panteón Nacional de los Héroes", "Museo Casa de la Independencia", "Mercado 4"]
+        # Panteón abre 07:00
+        "start_time": "07:00",
+        "places": [
+            "Panteón Nacional de los Héroes",
+            "Museo Casa de la Independencia",
+            "Museo del Barro",
+            "Mercado 4"
+        ]
     },
     {
         "name": "Naturaleza y Relax",
         "description": "Parques y espacios verdes para desconectarse de la ciudad",
         "is_preset": True,
-        "places": ["Jardín Botánico y Zoológico de Asunción", "Parque Carlos Antonio López"]
+        # Jardín Botánico abre 07:00
+        "start_time": "07:00",
+        "places": [
+            "Jardín Botánico y Zoológico de Asunción",
+            "Parque Carlos Antonio López",
+            "Restaurante Tierra Colorada"
+        ]
     },
     {
         "name": "Gastronomía Asuncena",
         "description": "Los mejores restaurantes y bares típicos de la ciudad",
         "is_preset": True,
-        "places": ["La Preferida", "Restaurante Tierra Colorada", "Bar San Roque"]
+        # La Preferida abre 11:30
+        "start_time": "11:30",
+        "places": [
+            "La Preferida",
+            "Restaurante Tierra Colorada",
+            "Bar San Roque"
+        ]
     }
 ]
 
