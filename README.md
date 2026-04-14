@@ -20,11 +20,13 @@ turismo-asu-backend/
 │   ├── main.py                  # Configuración principal de FastAPI
 │   ├── routers/
 │   │   ├── places.py            # Endpoints de lugares
-│   │   └── routes.py            # Endpoints de rutas predeterminadas
+│   │   ├── routes.py            # Endpoints de rutas predeterminadas
+│   │   └── events.py            # Endpoints de eventos
 │   └── database/
 │       └── connection.py        # Conexión a PostgreSQL
 ├── scripts/
 │   ├── create_tables.sql        # Crea las tablas en la base de datos
+│   ├── migrate_add_start_time.sql  # Migración: agrega start_time a routes
 │   ├── seed_data.py             # Inserta datos de prueba
 │   └── populate_from_google.py  # (Pendiente) Carga datos reales desde Google Places API
 ├── .env                         # Variables de entorno — NO subir al repositorio
@@ -82,6 +84,7 @@ Almacena las rutas turísticas recomendadas que se muestran en la app.
 | name | TEXT | Nombre de la ruta |
 | description | TEXT | Descripción breve |
 | is_preset | BOOLEAN | Siempre `true` para rutas predeterminadas |
+| start_time | TIME | Hora de inicio recomendada (derivada del primer lugar de la ruta) |
 | created_at | TIMESTAMP | Fecha de creación |
 
 ---
@@ -96,6 +99,25 @@ Relaciona rutas con lugares y define el orden de visita.
 | route_id | INTEGER | Referencia a `routes.id` |
 | place_id | INTEGER | Referencia a `places.id` |
 | order_index | INTEGER | Orden del lugar dentro de la ruta (0, 1, 2...) |
+
+---
+
+### `events` — Eventos
+
+Almacena eventos turísticos y culturales de la ciudad.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| id | SERIAL | ID interno |
+| name | TEXT | Nombre del evento |
+| description | TEXT | Descripción (opcional) |
+| photo | TEXT | URL de la foto (opcional) |
+| date | DATE | Fecha del evento |
+| start_time | TIME | Hora de inicio |
+| end_time | TIME | Hora de fin (opcional) |
+| address | TEXT | Dirección (opcional) |
+| location | GEOGRAPHY | Coordenadas (opcional, indexada con GIST) |
+| created_at | TIMESTAMP | Fecha de inserción |
 
 ---
 
@@ -169,6 +191,57 @@ Devuelve la información completa de una ruta con todos sus lugares en orden de 
 ```bash
 curl "http://localhost:8000/routes/presets/1"
 ```
+
+---
+
+### Eventos — `/events`
+
+#### `GET /events` — Lista de eventos
+
+Devuelve todos los eventos ordenados por fecha y hora. Los eventos sin ubicación devuelven `lat: null, lng: null`.
+
+**Ejemplo:**
+```bash
+curl "http://localhost:8000/events"
+```
+
+---
+
+#### `GET /events/{id}` — Detalle de un evento
+
+**Ejemplo:**
+```bash
+curl "http://localhost:8000/events/1"
+```
+
+---
+
+#### `POST /events` — Crear un evento
+
+**Body JSON:**
+```json
+{
+  "name": "string",
+  "description": "string",
+  "photo": "string (URL)",
+  "date": "YYYY-MM-DD",
+  "start_time": "HH:MM",
+  "end_time": "HH:MM",
+  "address": "string",
+  "lat": -25.2867,
+  "lng": -57.6452
+}
+```
+
+Campos requeridos: `name`, `date`, `start_time`. Resto opcionales.
+
+**Respuesta (201):** `{ "id": 1 }`
+
+---
+
+#### `DELETE /events/{id}` — Eliminar un evento
+
+Responde `204 No Content`.
 
 ---
 
