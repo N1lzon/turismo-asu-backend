@@ -17,5 +17,7 @@ venv/
 
 # Claude Code
 CLAUDE.md
+SETUP.md
+PROJECT_CONTEXT.md
 .claude/
 
