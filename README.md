@@ -1,36 +1,95 @@
 # Turismo Asunción — Backend
 
-API REST para la app móvil de turismo de Asunción, Paraguay. Desarrollada con FastAPI y PostgreSQL + PostGIS.
+API REST para la app móvil de turismo de Asunción, Paraguay. Desarrollada con **FastAPI + PostgreSQL + PostGIS**.
 
 ---
 
 ## Tecnologías
 
-- **FastAPI** — framework web para Python
-- **PostgreSQL** — base de datos relacional
-- **PostGIS** — extensión de PostgreSQL para consultas geoespaciales
-- **psycopg2** — conector de Python para PostgreSQL
+| Componente | Tecnología | Versión |
+|---|---|---|
+| Lenguaje | Python | 3.11+ |
+| Framework web | FastAPI | 0.135.1 |
+| Servidor ASGI | Uvicorn | 0.41.0 |
+| Base de datos | PostgreSQL + PostGIS | — |
+| Adaptador BD | psycopg2-binary | 2.9.11 |
+| Variables de entorno | python-dotenv | 1.2.2 |
+
+No se utiliza ORM. Todas las consultas son SQL puro con psycopg2.
+
+---
+
+## Instalación y ejecución
+
+### Requisitos previos
+
+- Python 3.11+
+- PostgreSQL con la extensión PostGIS habilitada
+- Base de datos `turismo_asu` creada
+
+### Pasos
+
+```bash
+# 1. Clonar el repositorio
+git clone <url-del-repositorio>
+cd turismo-asu-backend
+
+# 2. Crear entorno virtual e instalar dependencias
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# 3. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con los datos de conexión
+
+# 4. Crear las tablas
+psql -d turismo_asu -f scripts/create_tables.sql
+
+# 5. Insertar datos de prueba
+python scripts/seed_data.py
+
+# 6. Iniciar el servidor
+uvicorn app.main:app --reload
+```
+
+El servidor queda disponible en `http://localhost:8000`.
+Documentación interactiva (Swagger UI): `http://localhost:8000/docs`.
+
+Para acceder desde un dispositivo móvil en la misma red:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --reload
+```
+
+### Variables de entorno (`.env`)
+
+```
+DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST:PUERTO/turismo_asu
+GOOGLE_PLACES_API_KEY=       # Reservado, no utilizado actualmente
+```
 
 ---
 
 ## Estructura del proyecto
+
 ```
 turismo-asu-backend/
 ├── app/
-│   ├── main.py                  # Configuración principal de FastAPI
-│   ├── routers/
-│   │   ├── places.py            # Endpoints de lugares
-│   │   ├── routes.py            # Endpoints de rutas predeterminadas
-│   │   └── events.py            # Endpoints de eventos
-│   └── database/
-│       └── connection.py        # Conexión a PostgreSQL
+│   ├── main.py                     # Configuración principal, CORS, registro de routers
+│   ├── database/
+│   │   └── connection.py           # Función get_connection() con RealDictCursor
+│   ├── models/                     # Reservado para modelos Pydantic
+│   └── routers/
+│       ├── places.py               # Endpoints de lugares turísticos
+│       ├── routes.py               # Endpoints de rutas predefinidas
+│       └── events.py               # Endpoints de eventos culturales
 ├── scripts/
-│   ├── create_tables.sql        # Crea las tablas en la base de datos
-│   ├── migrate_add_start_time.sql  # Migración: agrega start_time a routes
-│   ├── seed_data.py             # Inserta datos de prueba
-│   └── populate_from_google.py  # (Pendiente) Carga datos reales desde Google Places API
-├── .env                         # Variables de entorno — NO subir al repositorio
-├── .gitignore
+│   ├── create_tables.sql           # DDL: creación de tablas e índices
+│   ├── migrate_add_start_time.sql  # Migración: columna start_time en routes
+│   └── seed_data.py                # Datos de prueba: 10 lugares, 3 rutas
+├── .env                            # Variables de entorno (no versionado)
+├── requirements.txt
 └── README.md
 ```
 
@@ -38,80 +97,67 @@ turismo-asu-backend/
 
 ## Base de datos
 
-El proyecto usa tres tablas:
+El sistema tiene cuatro tablas. Las columnas `location` en `places` y `events` son de tipo `GEOGRAPHY(POINT, 4326)`, gestionadas por PostGIS.
 
 ### `places` — Puntos de interés
 
-Almacena todos los lugares turísticos de Asunción.
-
 | Campo | Tipo | Descripción |
 |---|---|---|
-| id | SERIAL | ID interno |
-| google_place_id | TEXT | ID de Google Places (para datos reales) |
+| id | SERIAL PK | Identificador interno |
+| google_place_id | TEXT | ID de Google Places (único, opcional) |
 | name | TEXT | Nombre del lugar |
-| category | TEXT | Categoría del lugar (ver valores más abajo) |
+| category | TEXT | Categoría (ver valores abajo) |
 | address | TEXT | Dirección |
-| phone | TEXT | Teléfono de contacto |
+| phone | TEXT | Teléfono |
 | website | TEXT | Sitio web |
-| rating | DECIMAL | Promedio de estrellas (0.0 - 5.0) |
+| rating | DECIMAL(2,1) | Promedio de estrellas (0.0–5.0) |
 | total_ratings | INTEGER | Cantidad de reseñas |
 | opening_hours | JSONB | Horarios por día de la semana |
-| location | GEOGRAPHY | Coordenadas geográficas (PostGIS) |
-| photos | JSONB | Lista de URLs de fotos |
+| location | GEOGRAPHY | Coordenadas (PostGIS, indexada con GIST) |
+| photos | JSONB | Array de URLs de fotos |
 | created_at | TIMESTAMP | Fecha de inserción |
 
-**Categorías disponibles:** `restaurant`, `museum`, `park`, `hotel`, `bar`, `attraction`
+**Categorías válidas:** `restaurant`, `museum`, `park`, `hotel`, `bar`, `attraction`
 
-**Ejemplo de `opening_hours`:**
+**Formato de `opening_hours`:**
 ```json
 {
   "lunes": "09:00 - 17:00",
-  "martes": "09:00 - 17:00",
   "sábado": "09:00 - 12:00",
   "domingo": "Cerrado"
 }
 ```
 
----
-
-### `routes` — Rutas predeterminadas
-
-Almacena las rutas turísticas recomendadas que se muestran en la app.
+### `routes` — Rutas predefinidas
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| id | SERIAL | ID interno |
+| id | SERIAL PK | Identificador interno |
 | name | TEXT | Nombre de la ruta |
 | description | TEXT | Descripción breve |
-| is_preset | BOOLEAN | Siempre `true` para rutas predeterminadas |
-| start_time | TIME | Hora de inicio recomendada (derivada del primer lugar de la ruta) |
+| is_preset | BOOLEAN | `true` para rutas predefinidas de la app |
+| start_time | TIME | Hora de inicio recomendada |
 | created_at | TIMESTAMP | Fecha de creación |
 
----
+> Las rutas creadas por el usuario **no se almacenan en el backend** — viven en el dispositivo vía AsyncStorage.
 
-### `route_places` — Lugares de cada ruta
-
-Relaciona rutas con lugares y define el orden de visita.
+### `route_places` — Tabla de unión
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| id | SERIAL | ID interno |
-| route_id | INTEGER | Referencia a `routes.id` |
-| place_id | INTEGER | Referencia a `places.id` |
-| order_index | INTEGER | Orden del lugar dentro de la ruta (0, 1, 2...) |
+| id | SERIAL PK | Identificador interno |
+| route_id | INTEGER FK | Referencia a `routes.id` (cascade delete) |
+| place_id | INTEGER FK | Referencia a `places.id` (cascade delete) |
+| order_index | INTEGER | Orden de visita dentro de la ruta (base 0) |
 
----
-
-### `events` — Eventos
-
-Almacena eventos turísticos y culturales de la ciudad.
+### `events` — Eventos culturales
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| id | SERIAL | ID interno |
+| id | SERIAL PK | Identificador interno |
 | name | TEXT | Nombre del evento |
 | description | TEXT | Descripción (opcional) |
-| photo | TEXT | URL de la foto (opcional) |
+| photo | TEXT | URL de foto (opcional) |
 | date | DATE | Fecha del evento |
 | start_time | TIME | Hora de inicio |
 | end_time | TIME | Hora de fin (opcional) |
@@ -125,9 +171,13 @@ Almacena eventos turísticos y culturales de la ciudad.
 
 ### Lugares — `/places`
 
-#### `GET /places/nearby` — Lugares cercanos
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/places/nearby` | Lugares cercanos a una coordenada, ordenados por distancia |
+| GET | `/places/search` | Búsqueda por nombre (parcial, insensible a mayúsculas) |
+| GET | `/places/{id}` | Detalle completo de un lugar |
 
-Devuelve los lugares más cercanos a la ubicación del usuario, ordenados por distancia.
+#### GET /places/nearby
 
 | Parámetro | Tipo | Requerido | Default | Descripción |
 |---|---|---|---|---|
@@ -136,59 +186,38 @@ Devuelve los lugares más cercanos a la ubicación del usuario, ordenados por di
 | radius | int | | 2000 | Radio de búsqueda en metros |
 | category | string | | — | Filtrar por categoría |
 
-**Ejemplo:**
 ```bash
 curl "http://localhost:8000/places/nearby?lat=-25.2867&lng=-57.6470&radius=3000"
-curl "http://localhost:8000/places/nearby?lat=-25.2867&lng=-57.6470&category=restaurant"
+curl "http://localhost:8000/places/nearby?lat=-25.2867&lng=-57.6470&category=museum"
 ```
 
----
-
-#### `GET /places/search` — Buscar por nombre
-
-Busca lugares cuyo nombre contenga el texto ingresado.
+#### GET /places/search
 
 | Parámetro | Tipo | Requerido | Descripción |
 |---|---|---|---|
 | q | string | ✓ | Texto a buscar (mínimo 2 caracteres) |
 
-**Ejemplo:**
 ```bash
 curl "http://localhost:8000/places/search?q=museo"
 ```
 
----
+#### GET /places/{id}
 
-#### `GET /places/{id}` — Detalle de un lugar
-
-Devuelve toda la información de un lugar específico.
-
-**Ejemplo:**
 ```bash
-curl "http://localhost:8000/places/1"
+curl "http://localhost:8000/places/3"
 ```
 
 ---
 
 ### Rutas — `/routes`
 
-#### `GET /routes/presets` — Lista de rutas predeterminadas
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/routes/presets` | Lista de rutas predefinidas con total de lugares |
+| GET | `/routes/presets/{id}` | Detalle de una ruta con sus lugares en orden de visita |
 
-Devuelve todas las rutas recomendadas con el total de lugares de cada una.
-
-**Ejemplo:**
 ```bash
 curl "http://localhost:8000/routes/presets"
-```
-
----
-
-#### `GET /routes/presets/{id}` — Detalle de una ruta predeterminada
-
-Devuelve la información completa de una ruta con todos sus lugares en orden de visita.
-
-**Ejemplo:**
-```bash
 curl "http://localhost:8000/routes/presets/1"
 ```
 
@@ -196,57 +225,37 @@ curl "http://localhost:8000/routes/presets/1"
 
 ### Eventos — `/events`
 
-#### `GET /events` — Lista de eventos
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/events` | Lista todos los eventos ordenados por fecha |
+| GET | `/events/{id}` | Detalle de un evento |
+| POST | `/events` | Crea un nuevo evento |
+| DELETE | `/events/{id}` | Elimina un evento |
 
-Devuelve todos los eventos ordenados por fecha y hora. Los eventos sin ubicación devuelven `lat: null, lng: null`.
+#### POST /events
 
-**Ejemplo:**
-```bash
-curl "http://localhost:8000/events"
-```
+Campos requeridos: `name`, `date`, `start_time`. El resto son opcionales.
 
----
-
-#### `GET /events/{id}` — Detalle de un evento
-
-**Ejemplo:**
-```bash
-curl "http://localhost:8000/events/1"
-```
-
----
-
-#### `POST /events` — Crear un evento
-
-**Body JSON:**
 ```json
 {
-  "name": "string",
-  "description": "string",
-  "photo": "string (URL)",
-  "date": "YYYY-MM-DD",
-  "start_time": "HH:MM",
-  "end_time": "HH:MM",
-  "address": "string",
-  "lat": -25.2867,
-  "lng": -57.6452
+  "name": "Festival de Arte",
+  "description": "Festival de arte contemporáneo",
+  "date": "2026-06-15",
+  "start_time": "18:00",
+  "end_time": "22:00",
+  "address": "Parque Carlos Antonio López",
+  "lat": -25.2820,
+  "lng": -57.6480
 }
 ```
 
-Campos requeridos: `name`, `date`, `start_time`. Resto opcionales.
-
-**Respuesta (201):** `{ "id": 1 }`
-
----
-
-#### `DELETE /events/{id}` — Eliminar un evento
-
-Responde `204 No Content`.
+Respuesta `201 Created`: `{ "id": 42 }`
 
 ---
 
 ## Notas
 
-- Las rutas creadas por el usuario **no se guardan en el backend** — se almacenan localmente en el dispositivo con AsyncStorage.
-- El campo `location` usa el tipo `GEOGRAPHY` de PostGIS, lo que permite calcular distancias reales en metros directamente en las consultas SQL.
-- El servidor expone documentación interactiva en `http://localhost:8000/docs`.
+- Las consultas geoespaciales usan `ST_DWithin()` y `ST_Distance()` de PostGIS. La columna `location` se almacena como `GEOGRAPHY(POINT, 4326)` (WGS84).
+- En `ST_MakePoint(lng, lat)` la **longitud va primero**.
+- Cada endpoint abre y cierra su propia conexión a la base de datos (sin connection pooling).
+- El servidor expone documentación interactiva en `/docs` y `/redoc`.
