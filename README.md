@@ -9,11 +9,11 @@ API REST para la app móvil de turismo de Asunción, Paraguay. Desarrollada con 
 | Componente | Tecnología | Versión |
 |---|---|---|
 | Lenguaje | Python | 3.11+ |
-| Framework web | FastAPI | 0.135.1 |
-| Servidor ASGI | Uvicorn | 0.41.0 |
+| Framework web | FastAPI | 0.115.12 |
+| Servidor ASGI | Uvicorn | 0.34.3 |
 | Base de datos | PostgreSQL + PostGIS | — |
-| Adaptador BD | psycopg2-binary | 2.9.11 |
-| Variables de entorno | python-dotenv | 1.2.2 |
+| Adaptador BD | psycopg2-binary | 2.9.10 |
+| Variables de entorno | python-dotenv | 1.1.0 |
 
 No se utiliza ORM. Todas las consultas son SQL puro con psycopg2.
 
@@ -79,7 +79,6 @@ turismo-asu-backend/
 │   ├── main.py                     # Configuración principal, CORS, registro de routers
 │   ├── database/
 │   │   └── connection.py           # Función get_connection() con RealDictCursor
-│   ├── models/                     # Reservado para modelos Pydantic
 │   └── routers/
 │       ├── places.py               # Endpoints de lugares turísticos
 │       ├── routes.py               # Endpoints de rutas predefinidas
@@ -88,6 +87,7 @@ turismo-asu-backend/
 │   ├── create_tables.sql           # DDL: creación de tablas e índices
 │   ├── migrate_add_start_time.sql  # Migración: columna start_time en routes
 │   └── seed_data.py                # Datos de prueba: 10 lugares, 3 rutas
+├── places_dummy.json               # Datos de referencia de lugares (desarrollo)
 ├── .env                            # Variables de entorno (no versionado)
 ├── requirements.txt
 └── README.md
