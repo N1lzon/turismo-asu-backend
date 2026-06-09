@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: turismo_asu
+      POSTGRES_USER: turismo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-turismo123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../scripts/create_tables.sql:/docker-entrypoint-initdb.d/01_create_tables.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U turismo -d turismo_asu"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker-setup/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://turismo:${DB_PASSWORD:-turismo123}@db:5432/turismo_asu
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
