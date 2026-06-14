@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from datetime import date, time
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from app.database.connection import get_connection
+from app.dependencies import verify_api_key
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -10,9 +12,9 @@ class EventCreate(BaseModel):
     name: str
     description: Optional[str] = None
     photo: Optional[str] = None
-    date: str          # formato: YYYY-MM-DD
-    start_time: str    # formato: HH:MM
-    end_time: Optional[str] = None
+    date: date
+    start_time: time
+    end_time: Optional[time] = None
     address: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
@@ -71,7 +73,7 @@ def get_event(event_id: int):
     return dict(event)
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(verify_api_key)])
 def create_event(event: EventCreate):
     conn = get_connection()
     cur = conn.cursor()
@@ -109,7 +111,7 @@ def create_event(event: EventCreate):
     return {"id": new_id}
 
 
-@router.delete("/{event_id}", status_code=204)
+@router.delete("/{event_id}", status_code=204, dependencies=[Depends(verify_api_key)])
 def delete_event(event_id: int):
     conn = get_connection()
     cur = conn.cursor()
