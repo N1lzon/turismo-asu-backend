@@ -14,6 +14,7 @@ Uso (desde la raíz del proyecto):
 
 import json
 import os
+import pathlib
 import re
 import sys
 import time
@@ -29,6 +30,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Cambiar a None para traer todos los lugares de Asunción.
 LIMIT = None
+
+# Archivo temporal donde se guardan los IDs encontrados en la Fase 1.
+# Si el script se interrumpe y se vuelve a correr, retoma desde aquí.
+CHECKPOINT_FILE = pathlib.Path("/tmp/populate_asuncion_checkpoint.json")
 
 # Grilla 3×3 centrada en Asunción (9 puntos, radio 1500m).
 # Puntos ajustados para no caer en municipios vecinos.
@@ -236,48 +241,57 @@ def main():
         print("ERROR: GOOGLE_PLACES_API_KEY no está definida en .env")
         sys.exit(1)
 
-    conn = psycopg2.connect(DATABASE_URL)
-    cur  = conn.cursor()
-
-    truncate_places(cur)
-    conn.commit()
-
     # --- Fase 1: recolectar IDs únicos en la grilla ---
-    print("Fase 1: buscando lugares en la grilla de Asunción...\n")
-    found: dict[str, str] = {}  # place_id -> category
-    total = len(GRID_LATS) * len(GRID_LNGS) * sum(len(v) for v in CATEGORY_TYPES.values())
-    n = 0
+    # Si existe un checkpoint, retoma desde ahí sin repetir búsquedas.
+    if CHECKPOINT_FILE.exists():
+        found: dict[str, str] = json.loads(CHECKPOINT_FILE.read_text())
+        print(f"Checkpoint encontrado — retomando con {len(found)} IDs ya recolectados.")
+        print("(Borrá /tmp/populate_asuncion_checkpoint.json para empezar de cero)\n")
+    else:
+        print("Fase 1: buscando lugares en la grilla de Asunción...\n")
+        found = {}
+        total = len(GRID_LATS) * len(GRID_LNGS) * sum(len(v) for v in CATEGORY_TYPES.values())
+        n = 0
 
-    for lat in GRID_LATS:
-        for lng in GRID_LNGS:
-            for category, types in CATEGORY_TYPES.items():
-                for gtype in types:
+        for lat in GRID_LATS:
+            for lng in GRID_LNGS:
+                for category, types in CATEGORY_TYPES.items():
+                    for gtype in types:
+                        if LIMIT and len(found) >= LIMIT:
+                            break
+                        n += 1
+                        try:
+                            ids = nearby_search(lat, lng, gtype)
+                            new_ids = [i for i in ids if i not in found]
+                            for pid in new_ids:
+                                found[pid] = category
+                            print(f"  [{n}/{total}] ({lat:.2f},{lng:.2f}) {gtype:25s} → {len(ids):2d} resultados, {len(new_ids):2d} nuevos")
+                        except SystemExit:
+                            raise
+                        except Exception as e:
+                            print(f"  [{n}/{total}] ERROR ({lat:.2f},{lng:.2f}) {gtype}: {e}")
+                        time.sleep(2)
                     if LIMIT and len(found) >= LIMIT:
                         break
-                    n += 1
-                    try:
-                        ids = nearby_search(lat, lng, gtype)
-                        new_ids = [i for i in ids if i not in found]
-                        for pid in new_ids:
-                            found[pid] = category
-                        print(f"  [{n}/{total}] ({lat:.2f},{lng:.2f}) {gtype:25s} → {len(ids):2d} resultados, {len(new_ids):2d} nuevos")
-                    except SystemExit:
-                        raise
-                    except Exception as e:
-                        print(f"  [{n}/{total}] ERROR ({lat:.2f},{lng:.2f}) {gtype}: {e}")
-                    time.sleep(1)
                 if LIMIT and len(found) >= LIMIT:
                     break
             if LIMIT and len(found) >= LIMIT:
                 break
-        if LIMIT and len(found) >= LIMIT:
-            break
+
+        # Guardar checkpoint antes de pasar a Fase 2
+        CHECKPOINT_FILE.write_text(json.dumps(found))
+        print(f"\nCheckpoint guardado. Total únicos: {len(found)}\n")
 
     places_to_process = dict(list(found.items())[:LIMIT] if LIMIT else found.items())
-    print(f"\nTotal únicos encontrados: {len(found)} — a procesar: {len(places_to_process)}\n")
 
-    # --- Fase 2: detalles + filtro Asunción + inserción ---
-    print("Fase 2: obteniendo detalles e insertando...\n")
+    # --- Fase 2: truncar, obtener detalles e insertar ---
+    print(f"Fase 2: obteniendo detalles e insertando {len(places_to_process)} lugares...\n")
+
+    conn = psycopg2.connect(DATABASE_URL)
+    cur  = conn.cursor()
+    truncate_places(cur)
+    conn.commit()
+
     inserted = skipped = filtered = errors = 0
 
     for i, (place_id, category) in enumerate(places_to_process.items(), 1):
@@ -320,6 +334,9 @@ def main():
     conn.commit()
     cur.close()
     conn.close()
+
+    # Borrar checkpoint al terminar exitosamente
+    CHECKPOINT_FILE.unlink(missing_ok=True)
 
     print(f"""
 Listo.
