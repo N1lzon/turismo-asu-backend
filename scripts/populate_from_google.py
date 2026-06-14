@@ -36,14 +36,23 @@ GRID_LATS = [-25.26, -25.30, -25.34]
 GRID_LNGS = [-57.62, -57.66, -57.70]
 SEARCH_RADIUS = 1500.0  # metros
 
-# Tipos de Google → categoría de la app.
+# Categorías de la app y los tipos de Google que se buscan por cada una.
+#   gastronomia — todo lo relacionado a comida y bebida
+#   hoteles     — hospedajes de todo tipo
+#   lugares     — atracciones, museos, parques, monumentos, etc.
 CATEGORY_TYPES = {
-    "restaurant": ["restaurant", "cafe", "bakery"],
-    "museum":     ["museum", "art_gallery", "cultural_center"],
-    "park":       ["park", "botanical_garden", "zoo"],
-    "hotel":      ["hotel", "motel", "resort_hotel"],
-    "bar":        ["bar", "night_club"],
-    "attraction": ["tourist_attraction", "historical_landmark", "church"],
+    "gastronomia": [
+        "restaurant", "cafe", "bakery", "bar",
+        "night_club", "fast_food_restaurant",
+    ],
+    "hoteles": [
+        "hotel", "motel", "resort_hotel",
+    ],
+    "lugares": [
+        "tourist_attraction", "historical_landmark",
+        "museum", "art_gallery", "cultural_center",
+        "park", "zoo", "church",
+    ],
 }
 
 TYPE_TO_CATEGORY = {
