@@ -24,10 +24,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Bounding box de Asunción (sur, oeste, norte, este)
 BBOX = "(-25.38,-57.76,-25.24,-57.52)"
 
-# Servidor francés primero — muy confiable
 OVERPASS_SERVERS = [
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass.openstreetmap.fr/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ]
 
