@@ -8,7 +8,7 @@ Uso (desde la raíz del proyecto):
     python scripts/populate_from_osm.py
 """
 
-import bz2
+import gzip
 import json
 import os
 import re
@@ -33,8 +33,9 @@ BBOX_MAX_LAT, BBOX_MAX_LON = -25.24, -57.52
 NODE_BBOX_MIN_LAT, NODE_BBOX_MIN_LON = -25.50, -57.90
 NODE_BBOX_MAX_LAT, NODE_BBOX_MAX_LON = -25.10, -57.40
 
-OSM_PATH = Path("/tmp/paraguay-latest.osm.bz2")
-OSM_URL  = "https://download.geofabrik.de/south-america/paraguay-latest.osm.bz2"
+OSM_PATH = Path("/tmp/asuncion-latest.osm.gz")
+# BBBike: extract específico de Asunción (~10-20 MB), formato OSM XML + gzip
+OSM_URL  = "https://download.bbbike.org/osm/bbbike/Asuncion/Asuncion.osm.gz"
 
 CATEGORY_FILTERS = {
     "gastronomia": {
@@ -116,7 +117,7 @@ def download_osm():
         mb = OSM_PATH.stat().st_size / 1_000_000
         print(f"Extract ya descargado: {OSM_PATH} ({mb:.0f} MB)\n")
         return
-    print(f"Descargando extract de Paraguay desde Geofabrik (~50 MB)...")
+    print(f"Descargando extract de Asunción desde BBBike (~15 MB)...")
     resp = requests.get(OSM_URL, stream=True, timeout=300)
     resp.raise_for_status()
     total = int(resp.headers.get("content-length", 0))
@@ -231,7 +232,7 @@ def parse_osm() -> list[dict]:
     print(f"Parseando {OSM_PATH} (esto puede tardar 1-2 minutos)...")
     t0 = time.time()
 
-    with bz2.open(OSM_PATH, "rb") as f:
+    with gzip.open(OSM_PATH, "rb") as f:
         for event, elem in ET.iterparse(f, events=("start", "end")):
             if event == "start":
                 if elem.tag == "node":
