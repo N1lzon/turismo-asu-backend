@@ -116,34 +116,60 @@ def parse_opening_hours(raw: str | None) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Overpass API
+# Overpass API  — queries pequeñas por tag key para no saturar los servidores
 # ---------------------------------------------------------------------------
 
-def _build_query() -> str:
-    lines = []
+def _build_queries() -> list[tuple[str, str]]:
+    """Una query por tag key (amenity, tourism, shop, leisure, historic)."""
+    merged: dict[str, set[str]] = {}
     for groups in CATEGORY_FILTERS.values():
         for key, vals in groups.items():
-            regex = "|".join(vals)
-            for elem_type in ("node", "way"):
-                lines.append(f'  {elem_type}["{key}"~"{regex}"]{BBOX};\n')
-    return f"[out:json][timeout:90];\n(\n{''.join(lines)});\nout tags center;\n"
+            merged.setdefault(key, set()).update(vals)
+
+    queries = []
+    for key, vals in merged.items():
+        regex = "|".join(sorted(vals))
+        q = (
+            f"[out:json][timeout:60];\n"
+            f"(\n"
+            f'  node["{key}"~"{regex}"]{BBOX};\n'
+            f'  way["{key}"~"{regex}"]{BBOX};\n'
+            f");\n"
+            f"out tags center;\n"
+        )
+        queries.append((key, q))
+    return queries
+
+
+def _run_query(query: str) -> list[dict] | None:
+    for server in OVERPASS_SERVERS:
+        try:
+            resp = requests.post(server, data={"data": query}, timeout=75)
+            resp.raise_for_status()
+            return resp.json().get("elements", [])
+        except Exception as e:
+            print(f"    Error ({server.split('/')[2]}): {e}")
+            time.sleep(3)
+    return None
 
 
 def fetch_overpass() -> list[dict]:
-    query = _build_query()
-    for server in OVERPASS_SERVERS:
-        try:
-            resp = requests.post(server, data={"data": query}, timeout=120)
-            resp.raise_for_status()
-            elements = resp.json().get("elements", [])
-            host = server.split("/")[2]
-            print(f"Overpass OK ({host}): {len(elements)} elementos crudos\n")
-            return elements
-        except Exception as e:
-            print(f"  Error con {server.split('/')[2]}: {e}")
-            time.sleep(3)
-    print("ERROR: ningún servidor Overpass respondió.")
-    sys.exit(1)
+    queries = _build_queries()
+    all_elements: list[dict] = []
+
+    print(f"Consultando Overpass API en {len(queries)} queries separadas...\n")
+    for i, (tag_key, query) in enumerate(queries, 1):
+        print(f"  [{i}/{len(queries)}] {tag_key}...", end=" ", flush=True)
+        elements = _run_query(query)
+        if elements is None:
+            print("FALLÓ (se omite este tag)")
+        else:
+            print(f"{len(elements)} elementos")
+            all_elements.extend(elements)
+        time.sleep(2)
+
+    print(f"\nTotal crudos acumulados: {len(all_elements)}\n")
+    return all_elements
 
 
 # ---------------------------------------------------------------------------
