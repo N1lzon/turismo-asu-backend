@@ -2,8 +2,11 @@
 """
 Pobla la base de datos con lugares reales de Asunción usando Google Places API (New).
 
-Estrategia: grilla de 16 puntos (4x4) con radio de 2.5km, cubriendo toda la ciudad.
-Por cada punto se buscan las 6 categorías de la app.
+Estrategia: grilla de 9 puntos (3x3) centrada en Asunción, radio 1.5km.
+Solo se insertan lugares cuya dirección contiene "Asunción"/"Asuncion".
+
+Las fotos NO se descargan ahora — se guardan las referencias de Google en la
+columna google_place_id para poder ejecutar scripts/download_photos.py después.
 
 Uso (desde la raíz del proyecto):
     python scripts/populate_from_google.py
@@ -11,7 +14,6 @@ Uso (desde la raíz del proyecto):
 
 import json
 import os
-import pathlib
 import re
 import sys
 import time
@@ -22,22 +24,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+API_KEY      = os.getenv("GOOGLE_PLACES_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-PHOTOS_DIR = pathlib.Path("static/photos")
 
-# Grilla de búsqueda sobre Asunción (4 filas × 4 columnas = 16 puntos)
-GRID_LATS = [-25.21, -25.27, -25.32, -25.38]
-GRID_LNGS = [-57.56, -57.61, -57.66, -57.71]
-SEARCH_RADIUS = 2500.0  # metros
+# Cambiar a None para traer todos los lugares de Asunción.
+LIMIT = None
 
-# Tipos de Google Places que buscamos por cada categoría de la app.
-# La primera categoría cuyo tipo coincida en el lugar gana.
+# Grilla 3×3 centrada en Asunción (9 puntos, radio 1500m).
+# Puntos ajustados para no caer en municipios vecinos.
+GRID_LATS = [-25.26, -25.30, -25.34]
+GRID_LNGS = [-57.62, -57.66, -57.70]
+SEARCH_RADIUS = 1500.0  # metros
+
+# Tipos de Google → categoría de la app.
 CATEGORY_TYPES = {
     "restaurant": ["restaurant", "cafe", "bakery"],
     "museum":     ["museum", "art_gallery", "cultural_center"],
-    "park":       ["park", "national_park", "botanical_garden", "zoo"],
+    "park":       ["park", "botanical_garden", "zoo"],
     "hotel":      ["hotel", "motel", "resort_hotel"],
     "bar":        ["bar", "night_club"],
     "attraction": ["tourist_attraction", "historical_landmark", "church"],
@@ -68,14 +71,17 @@ BASE_HEADERS = {
 # ---------------------------------------------------------------------------
 
 def _request_with_backoff(fn, max_retries=5):
-    """Ejecuta fn() reintentando con backoff exponencial ante errores 429."""
     for attempt in range(max_retries):
         try:
             return fn()
         except requests.HTTPError as e:
-            if e.response.status_code == 429 and attempt < max_retries - 1:
-                wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
-                print(f"    429 rate limit — esperando {wait}s antes de reintentar...")
+            status = e.response.status_code
+            if status == 403:
+                print("\nERROR 403: La Places API (New) no está habilitada o la key es incorrecta.")
+                sys.exit(1)
+            if status == 429 and attempt < max_retries - 1:
+                wait = 2 ** attempt
+                print(f"    429 rate limit — esperando {wait}s...")
                 time.sleep(wait)
             else:
                 raise
@@ -108,7 +114,7 @@ def get_place_details(place_id: str) -> dict:
     fields = ",".join([
         "id", "displayName", "types", "formattedAddress",
         "nationalPhoneNumber", "websiteUri", "rating",
-        "userRatingCount", "regularOpeningHours", "photos", "location",
+        "userRatingCount", "regularOpeningHours", "location",
     ])
     def _call():
         resp = requests.get(
@@ -120,26 +126,6 @@ def get_place_details(place_id: str) -> dict:
         resp.raise_for_status()
         return resp.json()
     return _request_with_backoff(_call)
-
-
-def download_photo(photo_name: str, filename: str) -> str | None:
-    def _call():
-        resp = requests.get(
-            f"https://places.googleapis.com/v1/{photo_name}/media",
-            params={"maxHeightPx": 800, "maxWidthPx": 1200, "key": API_KEY},
-            allow_redirects=True,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp
-    try:
-        resp = _request_with_backoff(_call)
-        if resp.content:
-            (PHOTOS_DIR / filename).write_bytes(resp.content)
-            return f"{API_BASE_URL}/static/photos/{filename}"
-    except Exception:
-        pass
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -186,12 +172,23 @@ def parse_opening_hours(regular_opening_hours: dict | None) -> dict | None:
     return result or None
 
 
+def is_in_asuncion(address: str | None) -> bool:
+    if not address:
+        return False
+    return "asunci" in address.lower()
+
+
 # ---------------------------------------------------------------------------
 # Base de datos
 # ---------------------------------------------------------------------------
 
-def insert_place(cur, details: dict, category: str, photo_urls: list[str]) -> bool:
-    loc = details.get("location", {})
+def truncate_places(cur):
+    cur.execute("TRUNCATE route_places, places RESTART IDENTITY CASCADE")
+    print("Tabla places vaciada.\n")
+
+
+def insert_place(cur, details: dict, category: str) -> bool:
+    loc   = details.get("location", {})
     hours = details.get("regularOpeningHours")
     cur.execute(
         """
@@ -215,7 +212,7 @@ def insert_place(cur, details: dict, category: str, photo_urls: list[str]) -> bo
             json.dumps(parse_opening_hours(hours)) if hours else None,
             loc.get("longitude"),
             loc.get("latitude"),
-            json.dumps(photo_urls),
+            json.dumps([]),  # fotos vacías — completar con download_photos.py
         ),
     )
     return cur.fetchone() is not None
@@ -230,12 +227,14 @@ def main():
         print("ERROR: GOOGLE_PLACES_API_KEY no está definida en .env")
         sys.exit(1)
 
-    PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
     conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
+    cur  = conn.cursor()
 
-    # --- Fase 1: recolectar IDs únicos ---
-    print("Fase 1: buscando lugares en la grilla...\n")
+    truncate_places(cur)
+    conn.commit()
+
+    # --- Fase 1: recolectar IDs únicos en la grilla ---
+    print("Fase 1: buscando lugares en la grilla de Asunción...\n")
     found: dict[str, str] = {}  # place_id -> category
     total = len(GRID_LATS) * len(GRID_LNGS) * sum(len(v) for v in CATEGORY_TYPES.values())
     n = 0
@@ -244,6 +243,8 @@ def main():
         for lng in GRID_LNGS:
             for category, types in CATEGORY_TYPES.items():
                 for gtype in types:
+                    if LIMIT and len(found) >= LIMIT:
+                        break
                     n += 1
                     try:
                         ids = nearby_search(lat, lng, gtype)
@@ -251,49 +252,61 @@ def main():
                         for pid in new_ids:
                             found[pid] = category
                         print(f"  [{n}/{total}] ({lat:.2f},{lng:.2f}) {gtype:25s} → {len(ids):2d} resultados, {len(new_ids):2d} nuevos")
+                    except SystemExit:
+                        raise
                     except Exception as e:
                         print(f"  [{n}/{total}] ERROR ({lat:.2f},{lng:.2f}) {gtype}: {e}")
                     time.sleep(1)
+                if LIMIT and len(found) >= LIMIT:
+                    break
+            if LIMIT and len(found) >= LIMIT:
+                break
+        if LIMIT and len(found) >= LIMIT:
+            break
 
-    print(f"\nTotal lugares únicos: {len(found)}\n")
+    places_to_process = dict(list(found.items())[:LIMIT] if LIMIT else found.items())
+    print(f"\nTotal únicos encontrados: {len(found)} — a procesar: {len(places_to_process)}\n")
 
-    # --- Fase 2: detalles + fotos + inserción ---
-    print("Fase 2: descargando detalles y fotos...\n")
-    inserted = skipped = errors = 0
+    # --- Fase 2: detalles + filtro Asunción + inserción ---
+    print("Fase 2: obteniendo detalles e insertando...\n")
+    inserted = skipped = filtered = errors = 0
 
-    for i, (place_id, category) in enumerate(found.items(), 1):
+    for i, (place_id, category) in enumerate(places_to_process.items(), 1):
         try:
             details = get_place_details(place_id)
             time.sleep(0.5)
 
+            address = details.get("formattedAddress", "")
+
+            # Filtro: solo lugares de Asunción
+            if not is_in_asuncion(address):
+                filtered += 1
+                name = details.get("displayName", {}).get("text", place_id)
+                print(f"  [{i}/{len(places_to_process)}] ✗ fuera de Asunción: {name} — {address}")
+                continue
+
             # Categoría: preferir inferencia desde los tipos del lugar
-            place_types = details.get("types", [])
+            place_types    = details.get("types", [])
             final_category = next(
                 (TYPE_TO_CATEGORY[t] for t in place_types if t in TYPE_TO_CATEGORY),
                 category,
             )
 
-            # Descargar hasta 2 fotos
-            photo_urls = []
-            for j, photo in enumerate(details.get("photos", [])[:2]):
-                url = download_photo(photo["name"], f"{place_id}_{j}.jpg")
-                if url:
-                    photo_urls.append(url)
-                time.sleep(0.5)
-
-            was_inserted = insert_place(cur, details, final_category, photo_urls)
-
+            was_inserted = insert_place(cur, details, final_category)
             name = details.get("displayName", {}).get("text", place_id)
+
             if was_inserted:
                 inserted += 1
-                print(f"  [{i}/{len(found)}] ✓ {name} ({final_category})")
+                print(f"  [{i}/{len(places_to_process)}] ✓ {name} ({final_category})")
             else:
                 skipped += 1
-                print(f"  [{i}/{len(found)}] ~ ya existe: {name}")
+                print(f"  [{i}/{len(places_to_process)}] ~ ya existe: {name}")
 
+        except SystemExit:
+            raise
         except Exception as e:
             errors += 1
-            print(f"  [{i}/{len(found)}] ERROR {place_id}: {e}")
+            print(f"  [{i}/{len(places_to_process)}] ERROR {place_id}: {e}")
 
     conn.commit()
     cur.close()
@@ -301,9 +314,13 @@ def main():
 
     print(f"""
 Listo.
-  Insertados:  {inserted}
-  Ya existían: {skipped}
-  Errores:     {errors}
+  Insertados:       {inserted}
+  Ya existían:      {skipped}
+  Fuera Asunción:   {filtered}
+  Errores:          {errors}
+
+Para agregar fotos después:
+  python scripts/download_photos.py
 """)
 
 
