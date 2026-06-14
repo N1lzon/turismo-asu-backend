@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.routers import places, routes, events
 
 _is_dev = os.getenv("ENV", "production") == "development"
@@ -21,6 +22,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(places.router)
 app.include_router(routes.router)

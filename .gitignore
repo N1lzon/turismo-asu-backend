@@ -12,6 +12,10 @@ build/
 .venv/
 venv/
 
+# Fotos descargadas (se generan con el script de población)
+static/photos/*
+!static/photos/.gitkeep
+
 # VS Code
 .vscode/
 
