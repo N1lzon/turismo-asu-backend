@@ -26,6 +26,10 @@ services:
       DATABASE_URL: postgresql://turismo:${DB_PASSWORD:?DB_PASSWORD must be set}@db:5432/turismo_asu
       API_KEY: ${API_KEY:?API_KEY must be set}
       ENV: production
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME must be set}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      ADMIN_ORIGIN: ${ADMIN_ORIGIN:-}
     volumes:
       - photos_data:/app/static/photos
     depends_on:

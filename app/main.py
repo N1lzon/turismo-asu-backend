@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routers import places, routes, events
+from app.routers import places, routes, events, admin
 
 _is_dev = os.getenv("ENV", "production") == "development"
 
@@ -13,13 +13,16 @@ app = FastAPI(
     openapi_url="/openapi.json" if _is_dev else None,
 )
 
+_admin_origin = os.getenv("ADMIN_ORIGIN", "")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:8081",   # Expo web dev
-        "http://localhost:19006",  # Expo web alternativo
+        "http://localhost:8081",
+        "http://localhost:19006",
+        *([_admin_origin] if _admin_origin else []),
     ],
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -28,6 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(places.router)
 app.include_router(routes.router)
 app.include_router(events.router)
+app.include_router(admin.router)
 
 @app.get("/")
 def root():

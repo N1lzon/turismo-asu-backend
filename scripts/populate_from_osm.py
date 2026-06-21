@@ -22,7 +22,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Bounding box de Asunción (sur, oeste, norte, este)
-BBOX = "(-25.38,-57.76,-25.24,-57.52)"
+BBOX = "(-25.38,-57.76,-25.24,-57.55)"
 
 OVERPASS_SERVERS = [
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
