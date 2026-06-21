@@ -30,6 +30,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       ADMIN_ORIGIN: ${ADMIN_ORIGIN:-}
+      API_BASE_URL: ${API_BASE_URL:?API_BASE_URL must be set}
     volumes:
       - photos_data:/app/static/photos
     depends_on:
