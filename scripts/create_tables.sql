@@ -51,3 +51,10 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS events_date_idx ON events(date);
 CREATE INDEX IF NOT EXISTS events_location_idx ON events USING GIST(location);
+
+CREATE TABLE IF NOT EXISTS metrics (
+  id   INTEGER PRIMARY KEY DEFAULT 1,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+INSERT INTO metrics (data) VALUES ('{}') ON CONFLICT DO NOTHING;

@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Any
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi import APIRouter, Body, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from jose import jwt
@@ -186,6 +186,54 @@ def delete_photo(place_id: int, body: PhotoDelete):
     if filepath.exists():
         filepath.unlink()
 
+    return {"ok": True}
+
+
+@router.get("/metrics", dependencies=[Depends(verify_jwt)])
+def get_metrics():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT data FROM metrics WHERE id = 1")
+    row = cur.fetchone()
+    data = row["data"] if row else {}
+    if isinstance(data, str):
+        data = json.loads(data)
+
+    cur.execute("SELECT COUNT(*) AS total FROM places")
+    total = cur.fetchone()["total"]
+
+    cur.execute("SELECT category, COUNT(*) AS count FROM places GROUP BY category")
+    por_categoria = {r["category"]: r["count"] for r in cur.fetchall()}
+
+    cur.execute("SELECT COUNT(*) AS count FROM places WHERE photos = '[]'::jsonb")
+    sin_fotos = cur.fetchone()["count"]
+
+    cur.execute("SELECT COALESCE(SUM(jsonb_array_length(photos)), 0) AS total FROM places")
+    total_fotos = cur.fetchone()["total"]
+
+    cur.close()
+    conn.close()
+
+    lugares_data = dict(data.get("lugares", {}))
+    lugares_data.update({
+        "total": total,
+        "por_categoria": por_categoria,
+        "sin_fotos": sin_fotos,
+        "total_fotos": total_fotos,
+    })
+
+    return {**data, "lugares": lugares_data}
+
+
+@router.put("/metrics", dependencies=[Depends(verify_jwt)])
+def update_metrics(body: Any = Body(...)):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE metrics SET data = %s WHERE id = 1", (json.dumps(body),))
+    conn.commit()
+    cur.close()
+    conn.close()
     return {"ok": True}
 
 
