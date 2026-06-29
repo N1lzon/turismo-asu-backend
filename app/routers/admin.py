@@ -280,6 +280,7 @@ def get_route(route_id: int):
 class RouteUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    place_ids: Optional[list[int]] = None
 
 
 @router.put("/routes/{route_id}", dependencies=[Depends(verify_jwt)])
@@ -297,7 +298,7 @@ def update_route(route_id: int, body: RouteUpdate):
         set_parts.append("description = %s")
         params.append(body.description)
 
-    if not set_parts:
+    if not set_parts and body.place_ids is None:
         raise HTTPException(status_code=400, detail="No hay campos para actualizar")
 
     conn = get_connection()
@@ -308,8 +309,18 @@ def update_route(route_id: int, body: RouteUpdate):
         conn.close()
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
 
-    params.append(route_id)
-    cur.execute(f"UPDATE routes SET {', '.join(set_parts)} WHERE id = %s", params)
+    if set_parts:
+        params.append(route_id)
+        cur.execute(f"UPDATE routes SET {', '.join(set_parts)} WHERE id = %s", params)
+
+    if body.place_ids is not None:
+        cur.execute("DELETE FROM route_places WHERE route_id = %s", (route_id,))
+        for order_index, place_id in enumerate(body.place_ids):
+            cur.execute(
+                "INSERT INTO route_places (route_id, place_id, order_index) VALUES (%s, %s, %s)",
+                (route_id, place_id, order_index),
+            )
+
     conn.commit()
     cur.close()
     conn.close()
