@@ -192,7 +192,7 @@ def delete_photo(place_id: int, body: PhotoDelete):
 class RouteCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    is_preset: bool = False
+    is_preset: bool = True
     start_time: Optional[str] = None
     place_ids: list[int] = []
 
