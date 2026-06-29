@@ -189,6 +189,149 @@ def delete_photo(place_id: int, body: PhotoDelete):
     return {"ok": True}
 
 
+class RouteCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_preset: bool = False
+    start_time: Optional[str] = None
+    place_ids: list[int] = []
+
+
+@router.post("/routes", dependencies=[Depends(verify_jwt)], status_code=201)
+def create_route(body: RouteCreate):
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "INSERT INTO routes (name, description, is_preset, start_time) VALUES (%s, %s, %s, %s) RETURNING id",
+        (body.name, body.description, body.is_preset, body.start_time),
+    )
+    route_id = cur.fetchone()["id"]
+
+    for order_index, place_id in enumerate(body.place_ids):
+        cur.execute(
+            "INSERT INTO route_places (route_id, place_id, order_index) VALUES (%s, %s, %s)",
+            (route_id, place_id, order_index),
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"id": route_id}
+
+
+@router.get("/routes", dependencies=[Depends(verify_jwt)])
+def list_routes():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            r.id, r.name, r.description, r.is_preset, r.start_time,
+            COALESCE(
+                json_agg(
+                    json_build_object('id', p.id, 'name', p.name, 'category', p.category)
+                    ORDER BY rp.order_index
+                ) FILTER (WHERE p.id IS NOT NULL),
+                '[]'::json
+            ) AS places
+        FROM routes r
+        LEFT JOIN route_places rp ON r.id = rp.route_id
+        LEFT JOIN places p ON rp.place_id = p.id
+        GROUP BY r.id
+        ORDER BY r.name
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.get("/routes/{route_id}", dependencies=[Depends(verify_jwt)])
+def get_route(route_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            r.id, r.name, r.description, r.is_preset, r.start_time,
+            COALESCE(
+                json_agg(
+                    json_build_object('id', p.id, 'name', p.name, 'category', p.category)
+                    ORDER BY rp.order_index
+                ) FILTER (WHERE p.id IS NOT NULL),
+                '[]'::json
+            ) AS places
+        FROM routes r
+        LEFT JOIN route_places rp ON r.id = rp.route_id
+        LEFT JOIN places p ON rp.place_id = p.id
+        WHERE r.id = %s
+        GROUP BY r.id
+    """, (route_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    return dict(row)
+
+
+class RouteUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+@router.put("/routes/{route_id}", dependencies=[Depends(verify_jwt)])
+def update_route(route_id: int, body: RouteUpdate):
+    set_parts = []
+    params = []
+
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        set_parts.append("name = %s")
+        params.append(body.name)
+
+    if body.description is not None:
+        set_parts.append("description = %s")
+        params.append(body.description)
+
+    if not set_parts:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM routes WHERE id = %s", (route_id,))
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+
+    params.append(route_id)
+    cur.execute(f"UPDATE routes SET {', '.join(set_parts)} WHERE id = %s", params)
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"ok": True}
+
+
+@router.delete("/routes/{route_id}", dependencies=[Depends(verify_jwt)])
+def delete_route(route_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM routes WHERE id = %s", (route_id,))
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    cur.execute("DELETE FROM routes WHERE id = %s", (route_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"ok": True}
+
+
 @router.get("/metrics", dependencies=[Depends(verify_jwt)])
 def get_metrics():
     conn = get_connection()
